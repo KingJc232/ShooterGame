@@ -2,18 +2,23 @@ import pygame
 import random
 
 """
+	Use Neuro Symbolic AI IN game to play and beat the game 
 	Things Todo:
 		- Finish a Enemy Class to beat the game  
-			- add collision detection to the game
-			- Add little enemies  
-		- Make the game fully work (ProtoType)
-		- 
-		- Make it so that The player has to reload etc ... 
+
+		- Delete the little enemies when they touch the floor end game (END THE GAME )
+
+		- Make the game fully work (End game if enemy hit floor or if main_enemy health 0 )
+
+		- Add the Ai so that it can play the game using NEAT (Neuro Evolution of Augmenting Toplogies)
+
+		- Make it so that The player has to reload etc ...
 		- Add sprites So the game looks Nicer (Kinda Done) Need to do it for the player as well 
 		- Make it so that if a alien Touches the floor you lose
-		- Add States To have a start Menu ?? (Use a stack to hold the states) win, lost etc 
+		- Add States To have a start Menu ??  (Use a stack to hold the states) win, lost etc 
 		- REASON I was getting a weird error when I was displaying my enemy class 
 		is because i didnt initialize the super class (pygame.Surface)
+
 """
 
 pygame.init() #Initializing all modules in pygam e
@@ -26,6 +31,49 @@ GREEN = (0,255,100)
 RED = (255, 0,0)
 BLACK = (0,0,0)
 
+
+#Simple Collision Detector 
+class CollisionDetection:
+	
+	def __init__(self, first, second):
+		self.first = first
+		self.second = second
+		pass
+		#First surface to check for 
+	#Second surface to check for 
+	def checkForCollision(self):
+		
+		isColliding = False #Initially False 
+
+		#Getting the positions of the first and second surfaces 
+		firstX = self.first.playerRect.left
+		firstY = self.first.playerRect.top
+
+		secondX = self.second.playerRect.left
+		secondY = self.second.playerRect.top
+
+		#Getting HalfSizes of first and second Surfaces 
+		firstHalfSize = (self.first.get_width()  / 2, self.first.get_height() / 2)
+		secondHalfSize = (self.second.get_width() /2, self.second.get_height()/ 2)
+
+
+		#Getting the Center of the Surfaces 
+		firstCenter = (firstX - firstHalfSize[0], firstY - firstHalfSize[1])
+		secondCenter = (secondX - secondHalfSize[0], secondY - secondHalfSize[1])
+
+		#Calculating the Distance between both centers 
+		deltaX = abs(firstCenter[0] - secondCenter[0])
+		deltaY = abs(firstCenter[1] - secondCenter[1])
+
+		intersectX = deltaX - (firstHalfSize[0] + secondHalfSize[0])
+		intersectY = deltaY - (firstHalfSize[1] + secondHalfSize[1])
+
+		#If these statements true then colliding 
+		if intersectX < 0 and intersectY < 0:
+			isColliding = True
+
+		return isColliding 
+	pass
 
 #This will be my animation class 
 class Animation: 
@@ -96,8 +144,9 @@ class Bullet(pygame.Surface):
 
 #Creating the enemy class its going to be a space ship 
 #The surface is going to be the hitbox for the image 
+#GOING TO USE THIS SAME CLASS FOR THE LITTLE ENEMIES :) 
 class Enemy(pygame.Surface):
-	def __init__(self, screenW, screenH, image, width = 150, height = 150):
+	def __init__(self, screenW, screenH, image,hurtImage, direction = "SIDE", width = 150, height = 150, speed = 1, health = 1000):
 
 		#Very important 
 		super().__init__((width,height))
@@ -110,26 +159,36 @@ class Enemy(pygame.Surface):
 		startPosX = random.randint(0,screenW) #Randomly Selecting the X Position 
 		startPosY = 0
 		self.image = image #Saving the Image in the object variable #Which is the actual enemy 
+		self.hurtImage = hurtImage #Saving the Hurt Image 
+
 		self.image = pygame.transform .scale(self.image,(width,height))
+		self.hurtImage = pygame.transform.scale(self.hurtImage, (width, height))
 
 		#Saving the info of the enemy in a playerRect 
 		self.playerRect = pygame.Rect(startPosX, startPosY, width, height)
 
 		#Speed of the Enemy 
-		self.__speed = 1
+		self.__speed = speed
 		self.isRight = True #Initially the Direction of the Enemy is Right 
 
-		self.health = 1000 #Health of the enemy To win the game 
+		self.health = health #Health of the enemy To win the game 
+		self.currentlyHit = False #Determines if we should switch animation when hit 
+		self.direction = direction #Saving the direction in which we want to move the enemy 
 
-
+		self.active = True #Dertermines if the Enemy should be alive or not 
 
 	def draw(self, screen):
 
 		#Displaying the Surface to the screen 
 		screen.blit(self,(self.playerRect.left, self.playerRect.top))
 
-		#Displaying the Sprite on to the this->surface 
-		screen.blit(self.image,(self.playerRect.left, self.playerRect.top))
+		if self.currentlyHit == False: 
+			#Displaying the Sprite on to the this->surface 
+			screen.blit(self.image,(self.playerRect.left, self.playerRect.top))
+		elif self.currentlyHit == True:
+			#Displaying the Hurt animation on to the this->surface 
+			screen.blit(self.hurtImage,(self.playerRect.left, self.playerRect.top))
+			self.currentlyHit = False 
 		pass
 	#Will update the 
 	def update(self, dt):
@@ -141,26 +200,36 @@ class Enemy(pygame.Surface):
 	#Move the Enemy Right to left Every second increase its Speed 
 	def __move(self, dt):
 
-		#If the direction of the enemy is to the right move the enemy to the right 
-		if self.isRight == True: 
-			self.playerRect.left += self.__speed * dt
-
-		#Else the direction is to the left 
-		else:
-			self.playerRect.left -= self.__speed * dt 
+		if self.direction == "SIDE":
+			#If the direction of the enemy is to the right move the enemy to the right 
+			if self.isRight == True: 
+				self.playerRect.left += self.__speed * dt
+				#Else the direction is to the left 
+			else:
+				self.playerRect.left -= self.__speed * dt 
+		
+		#Move Enemy DOWN 
+		elif self.direction == "DOWN":
+			#Move the enemy down 
+			self.playerRect.top += self.__speed * dt
 
 		pass
 	#Determines the direction of the Enemy based on its position 
 	def __checkBoundaries(self):
-		if self.playerRect.left > (self.screenW - self.playerRect.width):
-			self.isRight = False #Go Left
-		if self.playerRect.left <= 0: 
-			self.isRight = True #Go Right
+		if self.direction == "SIDE":
+			if self.playerRect.left > (self.screenW - self.playerRect.width):
+				self.isRight = False #Go Left
+			if self.playerRect.left <= 0: 
+				self.isRight = True #Go Right
+
+		elif self.direction == "DOWN":
+			if self.playerRect.top >= self.screenH - self.playerRect.width:
+				self.active = False #Kill the enemy 
 
 	#Methods Runs when Enemy Hit 
 	def hit(self):
 		self.health -= 1 #Subbing one from the enemies health 
-
+		self.currentlyHit = True #Currently Hit 
 
 class Player(pygame.Surface):
 	def __init__(self, screenW, screenH, width = 40, height = 80):
@@ -264,21 +333,32 @@ class Game:
 		self.main_player = Player(self.__screen.get_width(), self.__screen.get_height()) #Creating the Main Player
 		
 		#Creating the Main Enemy 
-		self.main_enemy = Enemy(self.__screen.get_width(), self.__screen.get_height(), pygame.image.load("spaceship.png"))
+		self.main_enemy = Enemy(self.__screen.get_width(), self.__screen.get_height(), pygame.image.load("spaceship.png"), pygame.image.load("red.png"))
 		
 		#Creating the Score board of the game 
 		self.__font = pygame.font.Font("FreeSansBold.ttf", 64)
 		#Color, background color = 
 		self.__score = self.__font.render(str(self.main_enemy.health), True,PURPLE, BLACK)
 		self.__scorePos = (1100,300)
+
+		self.__enemies = [] #Empty List Initially 
+		self.__enemyTimer = 500 #Spawn enemies Every 3 Seconds 
+
+		self.__enemyCounter = 0.0 #Helps keep track of how many enemies spawning 
+		self.__seconds = 0.0 #Keeps track of the number of seconds that passed 
+
+		self.__enemySpeed = .1 #Speed of the little enemies 
 		pass
 
 	def start(self):
 
 		isOver = False
 		clock = pygame.time.Clock()
-		while not isOver:
 
+		start_ticks=pygame.time.get_ticks() #starter tick
+
+
+		while not isOver:
 			dt = clock.tick(60) #COntrols the Speed of the Game
 			#Event Loop Handler
 			for event in pygame.event.get():
@@ -287,8 +367,12 @@ class Game:
 
 			self.__screen.fill(WHITE)
 
+			#self.__seconds = (pygame.time.get_ticks()-start_ticks)/1000 #Keeps track of the seconds that passed
+			self.__enemyCounter += dt
+
 			self.collisionDetection() #Checking if Collision is Occuring
 			self.update(dt) #Updating all Components in the Game
+			self.spawnEnemies() #Spawns the Enemies 
 			self.draw() #Drawing all components in the Game
 
 			pygame.display.update() #Updating all display modules
@@ -307,6 +391,10 @@ class Game:
 
 		#Drawing the Score onto the screen 
 		self.__screen.blit(self.__score,self.__scorePos)
+
+		#Drawing all the enemies to the screen 
+		for enemy in self.__enemies:
+			enemy.draw(self.__screen)
 		pass
 	def update(self, dt):
 		#Updating the Main Player
@@ -319,50 +407,45 @@ class Game:
 		self.main_enemy.update(dt)
 
 		#Updates the Score 
-		self.__score = self.__font.render(str(self.main_enemy.health), True, PURPLE, BLACK)
+		self.__score = self.__font.render(str(self.main_enemy.health), True, PURPLE, BLACK) 
 
-	#First surface to check for 
-	#Second surface to check for 
-	def __checkForCollision(self, first, second):
-		
-		isColliding = False #Initially False 
+		#Updating all the Enemies to the screen 
+		for enemy in self.__enemies:
+			enemy.update(dt)
+			#Checking if we need to delete the little Enemies 
+			if enemy.health <= 0:
+				self.__enemies.remove(enemy) #Delete the little Enemy its health is 
 
-		#Getting the positions of the first and second surfaces 
-		firstX = first.playerRect.left
-		firstY = first.playerRect.top
+		#
 
-		secondX = second.playerRect.left
-		secondY = second.playerRect.top
+	#Spawns the Little Enemies to the screen 
+	def spawnEnemies(self):
+		if self.__enemyCounter >= self.__enemyTimer:
+			#Spawn Enemy 
+			self.__enemies.append(Enemy(self.__screen.get_width(), self.__screen.get_height(), pygame.image.load("spaceship.png"), pygame.image.load("red.png"), "DOWN", 40,40, self.__enemySpeed, 1))
+			self.__enemyCounter = 0.0 #Resetting the Counter 
 
-		#Getting HalfSizes of first and second Surfaces 
-		firstHalfSize = (first.get_width()  / 2, first.get_height() / 2)
-		secondHalfSize = (second.get_width() /2, second.get_height()/ 2)
+		pass
 
-
-		#Getting the Center of the Surfaces 
-		firstCenter = (firstX - firstHalfSize[0], firstY - firstHalfSize[1])
-		secondCenter = (secondX - secondHalfSize[0], secondY - secondHalfSize[1])
-
-		#Calculating the Distance between both centers 
-		deltaX = abs(firstCenter[0] - secondCenter[0])
-		deltaY = abs(firstCenter[1] - secondCenter[1])
-
-		intersectX = deltaX - (firstHalfSize[0] + secondHalfSize[0])
-		intersectY = deltaY - (firstHalfSize[1] + secondHalfSize[1])
-
-		#If these statements true then colliding 
-		if intersectX < 0 and intersectY < 0:
-			isColliding = True
-
-		return isColliding 
 	#Checks if anything is colliding with another thing 
 	def collisionDetection(self):
 		#Checking if the bullets are colliding with the enemy 
 		for bullet in self.main_player.bullets:
-			if self.__checkForCollision(bullet, self.main_enemy):
+			detector = CollisionDetection(bullet, self.main_enemy)
+			if detector.checkForCollision():
 				bullet.active = False #Deleting the Bullet 
 				self.main_enemy.hit() #Telling the Enemy it got hit
 				pass
+			#Collision Detection for Little Enemies and Bullet  NESTED FORLOOP 
+			for enemy in self.__enemies: 
+				enemyDetector = CollisionDetection(enemy, bullet)
+				#Active Bullet
+				if bullet.active == True and enemyDetector.checkForCollision() == True:
+					bullet.active = False #Deleting the Bullet 
+					enemy.hit() #Telling the Enemy it got hit 
+
+
+
 			pass
 		 
 
